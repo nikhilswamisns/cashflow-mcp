@@ -239,16 +239,27 @@ const words = (s: string) => s.toLowerCase().split(/[^a-z0-9/]+/).filter((w) => 
 const hit = (hay: string[], w: string) => hay.some((h) => h === w || (w.length >= 4 && h.startsWith(w)));
 
 /** score each metric by word overlap with the query; empty query returns everything */
-export function search(query: string, items = catalog()): CatalogItem[] {
+function scored(query: string, items: CatalogItem[]): { it: CatalogItem; score: number }[] {
   const q = words(query);
-  if (!q.length) return items;
-  const scored = items.map((it) => {
-    const title = words(it.title);
-    const hay = [...title, ...words(it.sub), ...it.tags.flatMap(words)];
-    const score = q.reduce((s, w) => s + (it.tags.includes(w) ? 3 : 0) + (hit(hay, w) ? 1 : 0) + (hit(title, w) ? 2 : 0), 0);
-    return { it, score };
-  });
-  return scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.it);
+  return items
+    .map((it) => {
+      const title = words(it.title);
+      const hay = [...title, ...words(it.sub), ...it.tags.flatMap(words)];
+      return { it, score: q.reduce((s, w) => s + (it.tags.includes(w) ? 3 : 0) + (hit(hay, w) ? 1 : 0) + (hit(title, w) ? 2 : 0), 0) };
+    })
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+}
+
+/** score each metric by word overlap with the query; empty query returns everything */
+export function search(query: string, items = catalog()): CatalogItem[] {
+  return words(query).length ? scored(query, items).map((s) => s.it) : items;
+}
+
+/** the metric that clearly answers a question (a tag hit or better), else null: then no chart is shown */
+export function bestMatch(question: string, minScore = 4): MetricId | null {
+  const top = scored(question, catalog())[0];
+  return top && top.score >= minScore ? (top.it.id as MetricId) : null;
 }
 
 /** pre-checked sections for a report topic: the best matches, or the cash basics when nothing matches */
@@ -295,8 +306,9 @@ export function headline(p: Panel): string {
 }
 
 /** plain-text message (email / chat) from the chosen sections */
-export function composeMessage(topic: string, panels: Panel[], tiles: Tile[] = []): string {
-  const lines = [`Subject: ${topic || "Business update"} (as of ${new Date(Date.UTC(END.y, END.m, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })})`, "", "Hi team,", "", "Quick update:", ""];
+export function composeMessage(topic: string, panels: Panel[], tiles: Tile[] = [], asOf = "2026-11"): string {
+  const when = new Date(`${asOf.slice(0, 7)}-01T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const lines = [`Subject: ${topic || "Business update"} (as of ${when})`, "", "Hi team,", "", "Quick update:", ""];
   for (const t of tiles) lines.push(`- ${t.label}: ${fmt(t.value, t.unit)}${t.note ? ` (${t.note})` : ""}`);
   for (const p of panels) lines.push(`- ${p.title}: ${headline(p)}`);
   lines.push("", "Full charts are in the attached report.", "", "Thanks");

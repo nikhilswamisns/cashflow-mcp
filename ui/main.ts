@@ -91,7 +91,8 @@ app.ontoolinput = () => {
 };
 app.ontoolresult = (params) => {
   const s = params.structuredContent as unknown as AnySpec | undefined;
-  if (s && ("panels" in s || s.mode === "browse" || s.mode === "report")) render(s);
+  const empty = s && "panels" in s && s.panels.length === 0 && !s.tiles?.length;
+  if (s && !empty && ("panels" in s || s.mode === "browse" || s.mode === "report")) render(s);
   else root.innerHTML = ""; // nothing to show: stay out of the way
 };
 app.onhostcontextchanged = (ctx) => {

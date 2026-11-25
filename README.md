@@ -23,12 +23,29 @@ Chart UI and chart code are reused from `~/Downloads/cashflow_with_ml` (repo `ni
 
 ```bash
 npm install
-npm run check     # type-check + chart picker rules
-npm run smoke     # builds the UI, starts the server over stdio, calls every tool
-npm run preview   # builds, writes sample data, opens http://localhost:5178/view.html with a demo bar
+npm run check       # type-check + picker, table-inference and Zoho tests (no network)
+npm run smoke       # builds the UI, starts the server over stdio, calls every tool
+npm run preview     # builds, writes sample data, opens http://localhost:5178/view.html with a demo bar
+npm run zoho:check  # with .env filled: logs in to Zoho Books and builds every metric from live data
 ```
 
-Copy `.env.example` to `.env` and fill in the Zoho Self Client values (not used yet: data is sample).
+### Zoho Books
+
+Copy `.env.example` to `.env` (or copy an existing project's `.env`: `ZOHO_ORG_ID`, `ZOHO_ACCOUNTS_URL` and similar names are understood) and fill in the Self Client values. With all four credentials present the server uses live Zoho Books; with any missing it uses sample data. A Zoho failure is returned as an error, never replaced by sample numbers.
+
+What is read (`src/zoho/books.ts`, all whole calendar months up to last month):
+
+| Metric | Zoho Books source |
+|---|---|
+| cash in / out, cash balance, runway | customer payments; vendor payments + expenses; bank and cash account balances walked back month by month |
+| receivables by age, overdue invoices, A/R tile | open invoices (not void or draft) by days past due |
+| revenue by customer / by customer type | invoices in the last 12 months; contact `customer_sub_type` |
+| change in days to pay | paid invoices: issue date to last payment date, last 12 months vs the year before |
+| cash in by method | customer payments by `payment_mode` |
+| quote to invoice | estimates in the last 90 days: sent, accepted, invoiced |
+| collections vs target | customer payments vs `ZOHO_COLLECTIONS_MONTHLY_TARGET` |
+
+Calls are read-only, cached 10 minutes, retried on rate limits, and paged newest-first so old history is not downloaded.
 
 ## How charts are chosen
 
@@ -55,7 +72,7 @@ Every chart has a Table toggle, a code-written insight line, and Actual/Predicti
 |---|---|---|
 | `dashboard` | start of a chat, "how are we doing" | KPI tiles with sparklines, cash balance + forecast, cash in vs out |
 | `show_metric` | a question that matches one of our 10 metrics | that metric in its picked chart |
-| `plot` | **after answering with numbers**: Claude passes the table behind its answer | the table auto-charted (or KPI tiles for one row). With `metric` set, Claude's numbers are checked against ours: conflicts get a red banner, flagged table rows, and the text result tells Claude to correct itself |
+| `visualize` | **after answering in text**, only when a chart or tiles help | Claude's answer has the numbers: they are charted with our templates (one row: KPI tiles); if we hold that metric, Claude's numbers are checked against ours and conflicts are flagged and sent back. No numbers in the answer: we pull our own data for the question. Neither: nothing is shown |
 | `browse` | "what data do we have", "find the overdue chart" | a search box over every chart; open results inline, ask Claude about one |
 | `report` | "make a report / summary / message for X" | a builder: sections that fit X pre-checked (plus tables from Claude's answer), the rest one click away; Report or Message; create, then download HTML / CSV / .txt, copy, or ask Claude to polish |
 | `compose` | view only | assembles the chosen report sections |
@@ -66,7 +83,7 @@ In the view: click a bar to get an "Ask Claude about …" chip (never sends on i
 
 ### Project instructions to paste
 
-> When your answer includes numbers that compare items or change over time, answer in text first, then call `kinnser.plot` with the table behind your answer. If the table is about one of our metrics, set `metric`. When asked for a report, summary or update, call `kinnser.report`. When asked what data exists, call `kinnser.browse`. Do not call any of these when the answer has no numbers worth charting.
+> Answer in text first. Then, only if a chart or headline tiles would help, call `kinnser.visualize` with the question; pass the numbers from your answer as `table` when you have them, and set `metric` when the question is about one of ours. When asked for a report, summary or update, call `kinnser.report`. When asked what data exists, call `kinnser.browse`. Do not call any of these when a chart adds nothing.
 
 ## What exists now
 

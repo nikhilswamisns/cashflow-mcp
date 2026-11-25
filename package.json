@@ -4,11 +4,12 @@
   "description": "MCP server: Zoho cash dashboard (tiles + charts) rendered inline in Claude via MCP Apps",
   "scripts": {
     "build": "vite build",
-    "check": "tsc && tsx scripts/picker.test.ts && tsx scripts/infer.test.ts",
+    "check": "tsc && tsx scripts/picker.test.ts && tsx scripts/infer.test.ts && tsx scripts/zoho.test.ts",
     "start": "tsx src/server.ts",
     "smoke": "vite build && tsx scripts/smoke.ts",
     "gallery": "vite build && tsx scripts/gallery.ts",
-    "preview": "vite build && tsx scripts/gallery.ts && vite preview --port 5178 --open /view.html"
+    "preview": "vite build && tsx scripts/gallery.ts && vite preview --port 5178 --open /view.html",
+    "zoho:check": "tsx scripts/zoho-check.ts"
   },
   "keywords": [],
   "author": "",

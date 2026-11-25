@@ -31,24 +31,36 @@ for (const metric of METRIC_IDS) {
 const bad = await client.callTool({ name: "show_metric", arguments: { metric: "nope" } });
 assert.ok(bad.isError, "unknown metric rejected");
 
-// plot: Claude's own table, no metric -> drawn as-is
-const own = await client.callTool({ name: "plot", arguments: { title: "Visits by discipline", columns: [{ name: "Discipline" }, { name: "Visits" }], rows: [["PT", 120], ["OT", 80], ["SLP", 30]] } });
+// visualize, case 1: Claude's answer has the data -> drawn with our templates
+const vis = (args: Record<string, unknown>) => client.callTool({ name: "visualize", arguments: args });
+const own = await vis({ question: "visits by discipline", table: { title: "Visits by discipline", columns: [{ name: "Discipline" }, { name: "Visits" }], rows: [["PT", 120], ["OT", 80], ["SLP", 30]] } });
 const ownSpec = own.structuredContent as { source: string; panels: { shape: string }[] };
 assert.equal(ownSpec.source, "claude");
 assert.equal(ownSpec.panels[0].shape, "breakdown");
 
-// plot with a metric we own -> our numbers, conflict flagged, Claude told to correct
-const chk = await client.callTool({ name: "plot", arguments: { title: "Top customers", metric: "top_customers", columns: [{ name: "Customer" }, { name: "Revenue", unit: "usd" }], rows: [["Acme Health", 580000], ["Northwind", 455000]] } });
+// ...and when we hold that metric: our numbers drawn, conflict flagged, Claude told to correct
+const chk = await vis({ question: "top customers", metric: "top_customers", table: { title: "Top customers", columns: [{ name: "Customer" }, { name: "Revenue", unit: "usd" }], rows: [["Acme Health", 580000], ["Northwind", 455000]] } });
 const chkSpec = chk.structuredContent as { check: { conflicts: unknown[]; matched: number } };
 assert.equal(chkSpec.check.matched, 2);
 assert.equal(chkSpec.check.conflicts.length, 1);
 assert.match((chk.content as { text: string }[])[0].text, /CONFLICT with our data \(top_customers\): Acme Health: your answer \$580,000 vs ours \$612,000/);
 
-// plot with one row of numbers -> tiles only
-const tiles = await client.callTool({ name: "plot", arguments: { title: "Headline", columns: [{ name: "Revenue", unit: "usd" }, { name: "Margin %", unit: "percent" }], rows: [[1200000, 18]] } });
+// one row of numbers -> tiles only
+const tiles = await vis({ question: "headline", table: { title: "Headline", columns: [{ name: "Revenue", unit: "usd" }, { name: "Margin %", unit: "percent" }], rows: [[1200000, 18]] } });
 assert.equal((tiles.structuredContent as { tiles: unknown[] }).tiles.length, 2);
 
-const badTable = await client.callTool({ name: "plot", arguments: { title: "x", columns: [{ name: "a" }, { name: "b" }], rows: [["only one"]] } });
+// case 2: no data in the answer, we have it -> ours
+const ar = await vis({ question: "who owes us money?" });
+assert.equal((ar.structuredContent as { panels: { id: string }[] }).panels[0].id, "ar_aging");
+const kpi = await vis({ question: "how are we doing", want: "tiles" });
+assert.equal((kpi.structuredContent as { tiles: unknown[]; panels: unknown[] }).tiles.length, 5);
+
+// case 3: no data anywhere -> nothing shown
+const none = await vis({ question: "how many PT visits did we do?" });
+assert.equal((none.structuredContent as { panels: unknown[] }).panels.length, 0);
+assert.match((none.content as { text: string }[])[0].text, /^No chart/);
+
+const badTable = await vis({ question: "x", table: { title: "x", columns: [{ name: "a" }, { name: "b" }], rows: [["only one"]] } });
 assert.ok(badTable.isError, "ragged table rejected");
 
 // browse + report + compose
