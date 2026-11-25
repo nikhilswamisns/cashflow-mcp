@@ -102,4 +102,28 @@ app.onhostcontextchanged = (ctx) => {
 };
 if (inHost) {
   app.connect().then(() => { const th = app.getHostContext()?.theme; if (th) applyDocumentTheme(th); }).catch((e) => console.error(e));
+} else {
+  demo();
+}
+
+/** Opened outside Claude (npm run preview): a bar to switch between the sample specs in dist/ui/*.json. */
+async function demo() {
+  const DEMOS = [["gallery", "All charts"], ["plot", "Conflict check"], ["claude", "Claude's table"], ["browse", "Search"], ["report", "Report builder"]];
+  const pick = new URLSearchParams(location.search).get("demo") ?? "gallery";
+  const bar = document.createElement("nav");
+  bar.className = "demo-bar";
+  bar.innerHTML = `<b>Preview</b>${DEMOS.map(([k, l]) => `<a href="?demo=${k}"${k === pick ? ' aria-current="page"' : ""}>${l}</a>`).join("")}<button class="tbtn" type="button">Light / dark</button>`;
+  bar.querySelector("button")!.addEventListener("click", () => {
+    const dark = document.documentElement.getAttribute("data-theme") === "dark" || (!document.documentElement.hasAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    if (last) render(last);
+  });
+  document.body.prepend(bar);
+  try {
+    const r = await fetch(`${pick}.json`);
+    if (!r.ok) throw new Error(`${pick}.json not found`);
+    render(await r.json());
+  } catch {
+    root.innerHTML = `<div class="empty">No sample data here. Run <code>npm run preview</code> and open the link it prints.</div>`;
+  }
 }

@@ -37,6 +37,10 @@
       * { box-sizing: border-box; }
       body { margin: 0; padding: 12px; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
       .empty { color: var(--muted); padding: 24px; text-align: center; }
+      .demo-bar { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 13px; padding: 8px 12px; margin: -12px -12px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+      .demo-bar a { color: var(--text-2); text-decoration: none; }
+      .demo-bar a[aria-current] { color: var(--text); font-weight: 600; }
+      .demo-bar .tbtn { margin-left: auto; }
 
       .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin-bottom: 10px; }
       .tile, .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }

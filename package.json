@@ -7,7 +7,8 @@
     "check": "tsc && tsx scripts/picker.test.ts && tsx scripts/infer.test.ts",
     "start": "tsx src/server.ts",
     "smoke": "vite build && tsx scripts/smoke.ts",
-    "gallery": "vite build && tsx scripts/gallery.ts"
+    "gallery": "vite build && tsx scripts/gallery.ts",
+    "preview": "vite build && tsx scripts/gallery.ts && vite preview --port 5178 --open /view.html"
   },
   "keywords": [],
   "author": "",

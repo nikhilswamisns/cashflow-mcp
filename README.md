@@ -25,7 +25,7 @@ Chart UI and chart code are reused from `~/Downloads/cashflow_with_ml` (repo `ni
 npm install
 npm run check     # type-check + chart picker rules
 npm run smoke     # builds the UI, starts the server over stdio, calls every tool
-npm run gallery   # writes dist/ui/gallery.json: every chart form, for a browser preview
+npm run preview   # builds, writes sample data, opens http://localhost:5178/view.html with a demo bar
 ```
 
 Copy `.env.example` to `.env` and fill in the Zoho Self Client values (not used yet: data is sample).
