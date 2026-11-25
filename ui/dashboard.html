@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cash dashboard</title>
+    <style>
+      :root {
+        --bg: #ffffff; --surface: #fafafa; --border: #eaeaea; --text: #111; --text-2: #444; --muted: #777;
+        --c-in: #1ea672; --c-out: #e5484d; --c-net: #2563eb; --pos: #1ea672; --neg: #e5484d;
+        --mono: ui-monospace, "Geist Mono", SFMono-Regular, Menlo, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) { --bg: #000; --surface: #0a0a0a; --border: #222; --text: #ededed; --text-2: #bbb; --muted: #888; --c-in: #4ade80; --c-out: #ff6166; --c-net: #3291ff; --pos: #4ade80; --neg: #ff6166; }
+      }
+      :root[data-theme="dark"] { --bg: #000; --surface: #0a0a0a; --border: #222; --text: #ededed; --text-2: #bbb; --muted: #888; --c-in: #4ade80; --c-out: #ff6166; --c-net: #3291ff; --pos: #4ade80; --neg: #ff6166; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 12px; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Geist", sans-serif; }
+      .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+      .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+      .label { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+      .value { font: 600 22px/1.2 var(--mono); letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+      .note { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+      .up { color: var(--pos); } .down { color: var(--neg); }
+      .card { margin-top: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+      h2 { font-size: 15px; font-weight: 650; margin: 0 0 8px; }
+      .chart { position: relative; height: 240px; }
+      .fine { font-size: 12px; color: var(--muted); margin-top: 6px; }
+      .empty { color: var(--muted); padding: 24px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div id="root"><div class="empty">Loading cash dashboard…</div></div>
+    <script type="module" src="./dashboard.ts"></script>
+  </body>
+</html>
