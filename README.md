@@ -21,4 +21,25 @@ Chart UI and chart code are reused from `~/Downloads/cashflow_with_ml` (repo `ni
 
 ## Setup
 
-Copy `.env.example` to `.env` and fill in the Zoho Self Client values.
+```bash
+npm install
+npm run smoke   # builds the UI, starts the server over stdio, calls the dashboard tool
+```
+
+Copy `.env.example` to `.env` and fill in the Zoho Self Client values (not used yet: data is mock).
+
+## What exists now
+
+- `dashboard` tool (`src/server.ts`): 5 tiles (cash in, cash out, net, AR overdue, runway) and a monthly cash in/out chart, rendered inline in Claude as an MCP App (`ui/dashboard.*`, bundled to one HTML file by Vite).
+- All numbers are computed in `src/metrics.ts`. Data is mock until the Zoho Books client lands.
+- Transport is stdio (Claude Desktop, Claude Code). A claude.ai project connector needs a remote HTTP endpoint: next step after Zoho.
+
+### Try it in Claude Desktop
+
+Add to `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "kinnser": { "command": "npx", "args": ["tsx", "/Users/kiran/Desktop/sns_systems/kinnser-mcp/src/server.ts"] } } }
+```
+
+Run `npm run build` first, then ask Claude "show cash dashboard".
