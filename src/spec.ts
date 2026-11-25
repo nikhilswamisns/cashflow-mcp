@@ -86,13 +86,54 @@ export interface Tile {
   kind?: "actual" | "prediction";
 }
 
+/** where the numbers came from: our code (sample / zoho) or Claude's own answer */
+export type Source = "sample" | "zoho_books" | "zoho_analytics" | "claude";
+
+/** a row where Claude's answer and our data disagree */
+export interface Conflict {
+  label: string;
+  claude: number;
+  ours: number;
+}
+
 export interface ViewSpec {
+  mode?: "view";
   title: string;
   asOf: string;
-  source: "sample" | "zoho_books" | "zoho_analytics";
+  source: Source;
   tiles?: Tile[];
   panels: Panel[];
+  /** set when Claude's table was checked against our data */
+  check?: { metric: string; conflicts: Conflict[]; matched: number; unmatched: string[] };
 }
+
+/** one entry in the searchable catalog */
+export interface CatalogItem {
+  id: string;
+  title: string;
+  sub: string;
+  form: Form;
+  tags: string[];
+}
+
+export interface BrowseSpec {
+  mode: "browse";
+  query: string;
+  items: CatalogItem[];
+}
+
+export interface ReportSpec {
+  mode: "report";
+  topic: string;
+  format: "report" | "message";
+  /** catalog ids picked for this topic, pre-checked in the builder */
+  recommended: string[];
+  items: CatalogItem[];
+  /** Claude's own tables, offered as extra sections (pre-checked) */
+  extras: Panel[];
+}
+
+export type AnySpec = ViewSpec | BrowseSpec | ReportSpec;
 
 export type Form =
   | "line" // level over time, optional plan / forecast / band
@@ -152,7 +193,8 @@ export function pickChart(p: Panel): Form {
     }
     case "share": {
       // a share of a rate or a signed number is not a share; past 6 parts slices can't be compared
-      const bad = p.unit === "percent" || p.values.some((v) => v < 0);
+      const sum = p.values.reduce((a, b) => a + b, 0);
+      const bad = (p.unit === "percent" && Math.abs(sum - 100) > 1.5) || p.values.some((v) => v < 0);
       return bad || p.x.length > MAX_DONUT_PARTS ? "ranked-hbars" : "donut";
     }
     case "progress":

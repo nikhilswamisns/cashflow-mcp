@@ -1,7 +1,7 @@
 // Metric catalog. Each metric builds a Panel from data; the view picks the chart.
 // shortcut: deterministic sample data, replace each builder's input with Zoho Books / Zoho Analytics calls.
 
-import type { Panel, Tile, ViewSpec, Unit } from "./spec.js";
+import type { CatalogItem, Panel, Tile, ViewSpec, Unit } from "./spec.js";
 import { pickChart } from "./spec.js";
 
 const END = { y: 2026, m: 10 }; // Nov 2026, month index 0-based
@@ -199,5 +199,106 @@ export function summarizePanel(p: Panel): string {
 export function summarize(v: ViewSpec): string {
   const tiles = (v.tiles ?? []).map((t) => `- ${t.label}: ${fmt(t.value, t.unit)}${t.deltaPct != null ? ` (${t.deltaPct >= 0 ? "+" : ""}${t.deltaPct}% vs last month)` : ""}${t.note ? `, ${t.note}` : ""}`);
   const head = `${v.title || "Metric"} as of ${v.asOf} (source: ${v.source}). The chart is shown to the user; use these numbers, do not recompute.`;
-  return [head, tiles.join("\n"), ...v.panels.map(summarizePanel)].filter(Boolean).join("\n\n");
+  let check = "";
+  if (v.check) {
+    const c = v.check;
+    const u = v.panels[0]?.unit ?? "count";
+    check = c.conflicts.length
+      ? `CONFLICT with our data (${c.metric}): ${c.conflicts.map((x) => `${x.label}: your answer ${fmt(x.claude, u)} vs ours ${fmt(x.ours, u)}`).join("; ")}. The chart shows OUR numbers. Correct your answer for the user.`
+      : `Checked against our data (${c.metric}): ${c.matched} rows match.`;
+    if (c.unmatched.length) check += ` Could not match: ${c.unmatched.join(", ")}.`;
+  }
+  return [head, check, tiles.join("\n"), ...v.panels.map(summarizePanel)].filter(Boolean).join("\n\n");
+}
+
+// ---- catalog: search and report recommendations ----
+
+const TAGS: Record<MetricId, string[]> = {
+  cash_balance: ["cash", "balance", "bank", "forecast", "runway", "liquidity"],
+  cash_in_out: ["cash", "inflow", "outflow", "receipts", "payments", "net", "burn"],
+  cash_in_by_source: ["cash", "receipts", "income", "source", "revenue", "insurance"],
+  ar_aging: ["receivables", "a/r", "ar", "aging", "overdue", "late", "collections", "owed", "owes", "owe", "unpaid", "debtors"],
+  top_customers: ["customers", "revenue", "clients", "top", "sales", "biggest"],
+  pay_speed_change: ["customers", "days to pay", "dso", "payment", "speed", "late"],
+  revenue_by_type: ["revenue", "mix", "segment", "customer type", "share", "payer"],
+  collections_vs_target: ["collections", "target", "goal", "region", "plan", "quota", "progress"],
+  quote_to_cash: ["funnel", "quotes", "conversion", "pipeline", "sales", "won"],
+  overdue_invoices: ["invoices", "overdue", "late", "a/r", "collections", "list"],
+};
+
+export function catalog(): CatalogItem[] {
+  return METRIC_IDS.map((id) => {
+    const p = METRICS[id]();
+    return { id, title: p.title, sub: p.sub ?? "", form: pickChart(p), tags: TAGS[id] };
+  });
+}
+
+const STOP = new Set(["who", "us", "we", "our", "the", "me", "my", "show", "what", "how", "is", "are", "of", "by", "for", "to", "and", "in", "on", "an", "do", "does", "much", "many", "give", "need", "update", "report", "please"]);
+const words = (s: string) => s.toLowerCase().split(/[^a-z0-9/]+/).filter((w) => w.length > 1 && !STOP.has(w));
+// whole words, plus prefixes for longer words ("invoic" -> "invoices")
+const hit = (hay: string[], w: string) => hay.some((h) => h === w || (w.length >= 4 && h.startsWith(w)));
+
+/** score each metric by word overlap with the query; empty query returns everything */
+export function search(query: string, items = catalog()): CatalogItem[] {
+  const q = words(query);
+  if (!q.length) return items;
+  const scored = items.map((it) => {
+    const title = words(it.title);
+    const hay = [...title, ...words(it.sub), ...it.tags.flatMap(words)];
+    const score = q.reduce((s, w) => s + (it.tags.includes(w) ? 3 : 0) + (hit(hay, w) ? 1 : 0) + (hit(title, w) ? 2 : 0), 0);
+    return { it, score };
+  });
+  return scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).map((s) => s.it);
+}
+
+/** pre-checked sections for a report topic: the best matches, or the cash basics when nothing matches */
+export function recommend(topic: string, n = 4): MetricId[] {
+  const hits = search(topic).slice(0, n).map((i) => i.id as MetricId);
+  return hits.length ? hits : ["cash_balance", "cash_in_out", "ar_aging"];
+}
+
+/** one line per panel for a message: the insight if there is one, else the key figure */
+export function headline(p: Panel): string {
+  if (p.insight) return p.insight.replace(/\*\*/g, "");
+  switch (p.shape) {
+    case "trend": {
+      const s = p.series.find((x) => (x.role ?? "actual") === "actual") ?? p.series[0];
+      const vals = s.values.map((v, i) => [p.x[i], v] as const).filter(([, v]) => v !== null);
+      const [x, v] = vals[vals.length - 1];
+      return `${s.name} was ${fmt(v, p.unit)} in ${x}.`;
+    }
+    case "breakdown": {
+      const s = p.series[0];
+      const top = p.x.map((x, i) => [x, s.values[i] ?? 0] as const).sort((a, b) => b[1] - a[1])[0];
+      return `Largest is ${top[0]} at ${fmt(top[1], p.unit)}.`;
+    }
+    case "share": {
+      const total = p.values.reduce((a, b) => a + b, 0);
+      const i = p.values.indexOf(Math.max(...p.values));
+      return `${p.x[i]} is ${Math.round((p.values[i] / total) * 100)}% of ${fmt(total, p.unit)}.`;
+    }
+    case "progress": {
+      const behind = p.rows.filter((r) => r.actual < r.target);
+      return behind.length ? `${behind.length} of ${p.rows.length} behind target: ${behind.map((r) => `${r.label} ${Math.round((r.actual / r.target) * 100)}%`).join(", ")}.` : `All ${p.rows.length} on or above target.`;
+    }
+    case "funnel": {
+      const a = p.rows[0], z = p.rows[p.rows.length - 1];
+      return `${Math.round((z.value / a.value) * 100)}% of ${a.label.toLowerCase()} reach ${z.label.toLowerCase()} (${fmt(z.value, p.unit)} of ${fmt(a.value, p.unit)}).`;
+    }
+    case "table": {
+      const top = p.rows[0];
+      if (!top) return "No rows.";
+      const first = p.columns.map((c) => (c.unit ? fmt(top[c.key] as number, c.unit) : String(top[c.key] ?? ""))).join(", ");
+      return `${p.rows.length} rows; top: ${first}.`;
+    }
+  }
+}
+
+/** plain-text message (email / chat) from the chosen sections */
+export function composeMessage(topic: string, panels: Panel[], tiles: Tile[] = []): string {
+  const lines = [`Subject: ${topic || "Business update"} (as of ${new Date(Date.UTC(END.y, END.m, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })})`, "", "Hi team,", "", "Quick update:", ""];
+  for (const t of tiles) lines.push(`- ${t.label}: ${fmt(t.value, t.unit)}${t.note ? ` (${t.note})` : ""}`);
+  for (const p of panels) lines.push(`- ${p.title}: ${headline(p)}`);
+  lines.push("", "Full charts are in the attached report.", "", "Thanks");
+  return lines.join("\n");
 }

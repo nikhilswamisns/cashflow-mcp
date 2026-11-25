@@ -1,19 +1,28 @@
-import { App, applyDocumentTheme } from "@modelcontextprotocol/ext-apps";
 import {
   Chart, BarController, BarElement, LineController, LineElement, PointElement, DoughnutController, ArcElement,
   CategoryScale, LinearScale, Filler, Tooltip, type ChartConfiguration, type Plugin,
 } from "chart.js";
 import { pickChart, rankTop, foldSeries, type Form, type Panel, type Series, type Tile, type Unit, type ViewSpec } from "../src/spec.js";
+import { tableEl, toCsv } from "./table.js";
 
 Chart.register(BarController, BarElement, LineController, LineElement, PointElement, DoughnutController, ArcElement, CategoryScale, LinearScale, Filler, Tooltip);
 
-const root = document.getElementById("root")!;
+/** what the view can ask of the chat host (real host in Claude, stubs in the browser preview) */
+export interface Host {
+  ask(text: string): void;
+  download(filename: string, mimeType: string, text: string): void;
+  call(tool: string, args: Record<string, unknown>): Promise<Record<string, unknown>>;
+}
+
 let charts: Chart[] = [];
-let last: ViewSpec | undefined;
+export function destroyCharts(): void {
+  charts.forEach((c) => c.destroy());
+  charts = [];
+}
 
 // ---------- formatting (cashflow format.ts / tsp dom.js) ----------
 const MINUS = "−";
-const usd = (n: number) => `${n < 0 ? MINUS : ""}$${Math.round(Math.abs(n)).toLocaleString("en-US")}`;
+export const usd =(n: number) => `${n < 0 ? MINUS : ""}$${Math.round(Math.abs(n)).toLocaleString("en-US")}`;
 const kfmt = (n: number) => {
   const a = Math.abs(n), s = n < 0 ? MINUS : "";
   if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(a >= 1e7 ? 1 : 2).replace(/\.?0+$/, "")}M`;
@@ -21,17 +30,17 @@ const kfmt = (n: number) => {
   if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(1).replace(/\.0$/, "")}K`;
   return `${s}$${Math.round(a)}`;
 };
-const full = (v: number | null | undefined, u: Unit | "months") =>
+export const full = (v: number | null | undefined, u: Unit | "months") =>
   v === null || v === undefined ? "Not recorded" : u === "usd" ? usd(v) : u === "percent" ? `${Math.round(v)}%` : u === "days" ? `${v} d` : u === "months" ? `${v} mo` : Math.round(v).toLocaleString("en-US");
-const short = (v: number, u: Unit | "months") => (u === "usd" ? kfmt(v) : full(v, u));
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const bold = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-const monthLabel = (x: string) => (/^\d{4}-\d{2}$/.test(x) ? new Date(`${x}-01T00:00:00Z`).toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }) : x);
+export const short = (v: number, u: Unit | "months") => (u === "usd" ? kfmt(v) : full(v, u));
+export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+export const bold = (s: string) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+export const monthLabel = (x: string) => (/^\d{4}-\d{2}$/.test(x) ? new Date(`${x}-01T00:00:00Z`).toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }) : x);
 
 // ---------- tokens ----------
 const css = (v: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const alpha = (c: string, a: number) => `color-mix(in srgb, ${c} ${Math.round(a * 100)}%, transparent)`;
-function tok() {
+export function tok() {
   return {
     text: css("--text"), text2: css("--text-2"), muted: css("--muted"), grid: css("--grid"), tick: css("--tick"), border: css("--border"),
     borderStrong: css("--border-strong"), surface: css("--surface"), cash: css("--c-cash"), ml: css("--c-ml"), plan: css("--c-plan"),
@@ -39,7 +48,7 @@ function tok() {
     k: ["--k1", "--k2", "--k3", "--k4", "--k5"].map(css),
   };
 }
-type Tok = ReturnType<typeof tok>;
+export type Tok = ReturnType<typeof tok>;
 /** fixed slot per series name, never by rank; past 5 slots and "Other" fall to the neutral */
 const slot = (t: Tok, i: number, name: string) => (name.startsWith("Other") || i >= t.k.length ? t.other : t.k[i]);
 // canvas can't resolve color-mix, so resolve alpha colours through a probe element
@@ -244,12 +253,13 @@ function funnel(p: Extract<Panel, { shape: "funnel" }>): Built {
   return { keys: [], html: `<div class="rows funnel">${rows}</div>` };
 }
 
-// ---------- table view: every chart has one, so no value is tooltip-only ----------
-function tableOf(p: Panel): { cols: { label: string; unit?: Unit }[]; rows: (string | number | null)[][] } {
+// ---------- table data: every chart has one, so no value is tooltip-only ----------
+export type TableData = { cols: { label: string; unit?: Unit }[]; rows: (string | number | null)[][] };
+export function tableOf(p: Panel): TableData {
   switch (p.shape) {
     case "trend":
     case "breakdown":
-      return { cols: [{ label: "" }, ...p.series.map((s) => ({ label: s.name, unit: p.unit }))], rows: p.x.map((x, i) => [p.shape === "trend" ? monthLabel(x) : x, ...p.series.map((s) => s.values[i])]) };
+      return { cols: [{ label: p.shape === "trend" ? "Month" : "" }, ...p.series.map((s) => ({ label: s.name, unit: p.unit }))], rows: p.x.map((x, i) => [p.shape === "trend" ? monthLabel(x) : x, ...p.series.map((s) => s.values[i])]) };
     case "share": {
       const total = p.values.reduce((a, b) => a + b, 0);
       return { cols: [{ label: "" }, { label: "Amount", unit: p.unit }, { label: "Share", unit: "percent" }], rows: p.x.map((x, i) => [x, p.values[i], (p.values[i] / total) * 100]) };
@@ -262,11 +272,6 @@ function tableOf(p: Panel): { cols: { label: string; unit?: Unit }[]; rows: (str
       return { cols: p.columns.map((c) => ({ label: c.label, unit: c.unit })), rows: p.rows.map((r) => p.columns.map((c) => r[c.key] ?? null)) };
   }
 }
-function tableHtml(p: Panel): string {
-  const { cols, rows } = tableOf(p);
-  const cell = (v: string | number | null, u?: Unit) => (u ? `<td class="num r">${v === null ? "–" : full(Number(v), u)}</td>` : `<td>${esc(String(v ?? "Not recorded"))}</td>`);
-  return `<div class="tablewrap"><table><thead><tr>${cols.map((c) => `<th${c.unit ? ' class="r"' : ""}>${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((v, i) => cell(v, cols[i].unit)).join("")}</tr>`).join("")}</tbody></table></div>`;
-}
 
 // ---------- tiles ----------
 function spark(values: number[], color: string): string {
@@ -274,7 +279,7 @@ function spark(values: number[], color: string): string {
   const pts = values.map((v, i) => `${((i / (values.length - 1)) * 100).toFixed(1)},${(24 - ((v - min) / span) * 22).toFixed(1)}`).join(" ");
   return `<svg class="t-spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
 }
-function tileHtml(x: Tile, t: Tok): string {
+export function tileHtml(x: Tile, t: Tok): string {
   let delta = "";
   if (x.deltaPct !== null && x.deltaPct !== undefined) {
     const good = (x.goodWhen ?? "higher") === "higher" ? x.deltaPct >= 0 : x.deltaPct <= 0;
@@ -287,8 +292,17 @@ function tileHtml(x: Tile, t: Tok): string {
 
 // ---------- panel ----------
 const WIDE: Form[] = ["line", "area", "stacked-area", "bars", "stacked-bars", "in-out", "table"];
+const fileSafe = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "data";
 
-function panelEl(p: Panel, t: Tok): { el: HTMLElement; built: Built; form: Form } {
+export interface PanelOpts {
+  host?: Host;
+  /** row labels to highlight in the table (conflicts with Claude's answer) */
+  flagged?: Set<string>;
+  /** report mode: no buttons, chart only */
+  static?: boolean;
+}
+
+export function panelEl(p: Panel, t: Tok, o: PanelOpts = {}): { el: HTMLElement; built: Built; form: Form } {
   const form = pickChart(p);
   let built: Built;
   if (p.shape === "trend") built = trend(p, form, t);
@@ -296,49 +310,82 @@ function panelEl(p: Panel, t: Tok): { el: HTMLElement; built: Built; form: Form 
   else if (p.shape === "share") built = form === "donut" ? donut(p, t) : breakdown({ ...p, shape: "breakdown", series: [{ name: p.title, values: p.values }] }, form, t);
   else if (p.shape === "progress") built = bullets(p, t);
   else if (p.shape === "funnel") built = funnel(p);
-  else built = { keys: [], html: tableHtml(p) };
+  else built = { keys: [] };
 
   const el = document.createElement("section");
   el.className = `panel${WIDE.includes(form) ? " wide" : ""}${p.kind === "prediction" ? " pred" : ""}`;
   el.dataset.form = form;
   const pred = p.kind === "prediction" ? `<span class="tag pred" title="What we expect to happen next. A prediction, not a fact.">Prediction</span>` : "";
-  const toggle = form === "table" ? "" : `<button class="tbtn" type="button" aria-pressed="false">Table</button>`;
-  const body = built.html ?? `<div class="chart" style="height:${built.height ?? 260}px"><canvas role="img" aria-label="${esc(p.title)}"></canvas></div>`;
-  el.innerHTML = `<div class="p-head"><div><h2>${esc(p.title)}</h2>${p.sub ? `<p class="sub">${esc(p.sub)}</p>` : ""}</div><div class="p-tools">${pred}${toggle}</div></div>
-    <div class="p-chart">${body}${legend(built.keys)}</div><div class="p-table" hidden>${form === "table" ? "" : tableHtml(p)}</div>
-    ${p.insight ? `<p class="insight">${bold(p.insight)}</p>` : ""}`;
-  const btn = el.querySelector<HTMLButtonElement>(".tbtn");
-  btn?.addEventListener("click", () => {
+  const tools = o.static
+    ? ""
+    : `${form === "table" ? "" : `<button class="tbtn" data-act="toggle" type="button" aria-pressed="false">Table</button>`}<button class="tbtn" data-act="csv" type="button" title="Download as CSV">CSV</button>`;
+  const isTable = p.shape === "table";
+  const body = isTable ? "" : built.html ?? `<div class="chart" style="height:${built.height ?? 260}px"><canvas role="img" aria-label="${esc(p.title)}"></canvas></div>`;
+  el.innerHTML = `<div class="p-head"><div><h2>${esc(p.title)}</h2>${p.sub ? `<p class="sub">${esc(p.sub)}</p>` : ""}</div><div class="p-tools">${pred}${tools}</div></div>
+    <div class="p-chart">${body}${legend(built.keys)}</div><div class="p-table"${isTable ? "" : " hidden"}></div>
+    ${p.insight ? `<p class="insight">${bold(p.insight)}</p>` : ""}<div class="p-ask" hidden></div>`;
+
+  const data = tableOf(p);
+  el.querySelector(".p-table")!.append(tableEl(data, { flagged: o.flagged, maxRows: o.static ? Infinity : 12 }));
+  if (isTable) el.querySelector<HTMLElement>(".p-chart")!.hidden = true;
+
+  el.querySelector<HTMLButtonElement>('[data-act="toggle"]')?.addEventListener("click", (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
     const on = btn.getAttribute("aria-pressed") !== "true";
     btn.setAttribute("aria-pressed", String(on));
     btn.textContent = on ? "Chart" : "Table";
     el.querySelector<HTMLElement>(".p-chart")!.hidden = on;
     el.querySelector<HTMLElement>(".p-table")!.hidden = !on;
   });
+  el.querySelector('[data-act="csv"]')?.addEventListener("click", () => o.host?.download(`${fileSafe(p.title)}.csv`, "text/csv", toCsv(data)));
+
+  // click a bar or point: offer to ask Claude about that item (never sends on its own)
+  if (built.config && o.host && !o.static) {
+    const ask = el.querySelector<HTMLElement>(".p-ask")!;
+    built.config.options = {
+      ...built.config.options,
+      onClick: (_e, items, chart) => {
+        const hit = items[0];
+        if (!hit) return;
+        const label = String(chart.data.labels?.[hit.index] ?? "");
+        if (!label) return;
+        ask.hidden = false;
+        ask.innerHTML = `<button class="chip" type="button">Ask Claude about <b>${esc(label)}</b> ↗</button><button class="chip ghost" type="button" aria-label="Dismiss">✕</button>`;
+        const [go, close] = ask.querySelectorAll("button");
+        go.addEventListener("click", () => { o.host!.ask(`In "${p.title}", tell me more about ${label}: what is driving it and what should we do?`); ask.hidden = true; });
+        close.addEventListener("click", () => (ask.hidden = true));
+      },
+      onHover: (e, items) => ((e.native?.target as HTMLElement | null)?.style.setProperty("cursor", items.length ? "pointer" : "default")),
+    };
+  }
   return { el, built, form };
 }
 
-export function render(v: ViewSpec): void {
-  last = v;
-  charts.forEach((c) => c.destroy());
-  charts = [];
+/** draw a view spec (tiles + panels) into a container */
+export function renderView(container: HTMLElement, v: ViewSpec, host?: Host, o: { static?: boolean } = {}): void {
   const t = tok();
-  root.innerHTML = "";
+  if (v.check?.conflicts.length) {
+    const u = v.panels[0]?.unit ?? "count";
+    container.insertAdjacentHTML("beforeend", `<div class="alert" role="status"><b>Numbers don't match our data.</b> ${v.check.conflicts.map((c) => `${esc(c.label)}: answer says ${esc(full(c.claude, u))}, ${esc(sourceName(v.source))} shows ${esc(full(c.ours, u))}`).join(" · ")}. The chart shows ${esc(sourceName(v.source))}.</div>`);
+  } else if (v.check) {
+    container.insertAdjacentHTML("beforeend", `<div class="alert ok" role="status">Checked against ${esc(sourceName(v.source))}: ${v.check.matched} rows match.${v.check.unmatched.length ? ` ${v.check.unmatched.length} not found: ${esc(v.check.unmatched.join(", "))}.` : ""}</div>`);
+  }
   if (v.tiles?.length) {
     const tiles = document.createElement("div");
     tiles.className = "tiles";
     tiles.innerHTML = v.tiles.map((x) => tileHtml(x, t)).join("");
-    root.append(tiles);
+    container.append(tiles);
   }
   const grid = document.createElement("div");
   grid.className = "panels";
-  root.append(grid);
+  container.append(grid);
+  const flagged = new Set(v.check?.conflicts.map((c) => c.label.toLowerCase()) ?? []);
   for (const p of v.panels) {
     try {
-      const { el, built } = panelEl(p, t);
+      const { el, built } = panelEl(p, t, { host, flagged, static: o.static });
       grid.append(el);
       const canvas = el.querySelector("canvas");
-      if (canvas && built.config) charts.push(new Chart(canvas, built.config));
+      if (canvas && built.config) charts.push(new Chart(canvas, o.static ? { ...built.config, options: { ...built.config.options, animation: false } } : built.config));
     } catch (e) {
       const el = document.createElement("section");
       el.className = "panel";
@@ -346,25 +393,9 @@ export function render(v: ViewSpec): void {
       grid.append(el);
     }
   }
-  const src = v.source === "sample" ? "sample data" : v.source === "zoho_books" ? "Zoho Books" : "Zoho Analytics";
-  root.insertAdjacentHTML("beforeend", `<p class="fine">As of ${esc(monthLabel(v.asOf))} · ${src} · read only</p>`);
+  const origin = v.source === "claude" ? `<span class="tag" title="Numbers came from Claude's answer, not checked against our data">From Claude's answer</span>` : esc(sourceName(v.source));
+  container.insertAdjacentHTML("beforeend", `<p class="fine">As of ${esc(monthLabel(v.asOf))} · ${origin} · read only</p>`);
 }
 
-// local preview hook: window.render(spec) in a plain browser tab
-(window as unknown as { render: typeof render }).render = render;
+export const sourceName = (s: ViewSpec["source"]) => (s === "sample" ? "sample data" : s === "zoho_books" ? "Zoho Books" : s === "zoho_analytics" ? "Zoho Analytics" : "Claude's answer");
 
-const app = new App({ name: "kinnser-view", version: "0.2.0" }, {}, { autoResize: true });
-app.ontoolresult = (params) => {
-  const v = params.structuredContent as unknown as ViewSpec | undefined;
-  if (v?.panels) render(v);
-  else root.innerHTML = `<div class="empty">No chart data returned.</div>`;
-};
-app.onhostcontextchanged = (ctx) => {
-  if (ctx.theme) {
-    applyDocumentTheme(ctx.theme);
-    if (last) render(last); // chart colours are read at draw time
-  }
-};
-if (window.parent !== window) {
-  app.connect().then(() => { const th = app.getHostContext()?.theme; if (th) applyDocumentTheme(th); if (last) render(last); }).catch((e) => console.error(e));
-}

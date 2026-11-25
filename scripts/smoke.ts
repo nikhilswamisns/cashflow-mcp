@@ -31,6 +31,43 @@ for (const metric of METRIC_IDS) {
 const bad = await client.callTool({ name: "show_metric", arguments: { metric: "nope" } });
 assert.ok(bad.isError, "unknown metric rejected");
 
+// plot: Claude's own table, no metric -> drawn as-is
+const own = await client.callTool({ name: "plot", arguments: { title: "Visits by discipline", columns: [{ name: "Discipline" }, { name: "Visits" }], rows: [["PT", 120], ["OT", 80], ["SLP", 30]] } });
+const ownSpec = own.structuredContent as { source: string; panels: { shape: string }[] };
+assert.equal(ownSpec.source, "claude");
+assert.equal(ownSpec.panels[0].shape, "breakdown");
+
+// plot with a metric we own -> our numbers, conflict flagged, Claude told to correct
+const chk = await client.callTool({ name: "plot", arguments: { title: "Top customers", metric: "top_customers", columns: [{ name: "Customer" }, { name: "Revenue", unit: "usd" }], rows: [["Acme Health", 580000], ["Northwind", 455000]] } });
+const chkSpec = chk.structuredContent as { check: { conflicts: unknown[]; matched: number } };
+assert.equal(chkSpec.check.matched, 2);
+assert.equal(chkSpec.check.conflicts.length, 1);
+assert.match((chk.content as { text: string }[])[0].text, /CONFLICT with our data \(top_customers\): Acme Health: your answer \$580,000 vs ours \$612,000/);
+
+// plot with one row of numbers -> tiles only
+const tiles = await client.callTool({ name: "plot", arguments: { title: "Headline", columns: [{ name: "Revenue", unit: "usd" }, { name: "Margin %", unit: "percent" }], rows: [[1200000, 18]] } });
+assert.equal((tiles.structuredContent as { tiles: unknown[] }).tiles.length, 2);
+
+const badTable = await client.callTool({ name: "plot", arguments: { title: "x", columns: [{ name: "a" }, { name: "b" }], rows: [["only one"]] } });
+assert.ok(badTable.isError, "ragged table rejected");
+
+// browse + report + compose
+const br = await client.callTool({ name: "browse", arguments: { query: "overdue" } });
+assert.equal((br.structuredContent as { mode: string }).mode, "browse");
+assert.match((br.content as { text: string }[])[0].text, /overdue_invoices/);
+const rp = await client.callTool({ name: "report", arguments: { topic: "Collections update for the board", extras: [{ title: "Visits", columns: [{ name: "Discipline" }, { name: "Visits" }], rows: [["PT", 120], ["OT", 80]] }] } });
+const rpSpec = rp.structuredContent as { mode: string; recommended: string[]; extras: unknown[] };
+assert.equal(rpSpec.mode, "report");
+assert.ok(rpSpec.recommended.includes("collections_vs_target"), `recommended: ${rpSpec.recommended}`);
+assert.equal(rpSpec.extras.length, 1);
+const cp = await client.callTool({ name: "compose", arguments: { topic: "Board", ids: ["ar_aging", "collections_vs_target"], extras: rpSpec.extras, tiles: true } });
+const cpSpec = cp.structuredContent as { view: { panels: unknown[]; tiles: unknown[] }; message: string };
+assert.equal(cpSpec.view.panels.length, 3);
+assert.equal(cpSpec.view.tiles.length, 5);
+assert.match(cpSpec.message, /^Subject: Board/);
+const badCompose = await client.callTool({ name: "compose", arguments: { topic: "x", ids: [], extras: [{ shape: "trend", x: ["a"], series: [{ name: "s", values: [1, 2] }], id: "z", title: "z", unit: "usd", measure: "flow" }] } });
+assert.ok(badCompose.isError, "malformed extra panel rejected");
+
 const rr = await client.readResource({ uri: "ui://kinnser/view.html" });
 const html = rr.contents[0] as { text: string; mimeType: string };
 assert.match(html.mimeType, /mcp-app/);

@@ -49,12 +49,31 @@ The server never says "draw a bar chart". Each metric returns a **panel** that s
 
 Every chart has a Table toggle, a code-written insight line, and Actual/Prediction tags. Colours keep one meaning (blue actual, orange forecast, grey plan, green in/good, red out/bad); the 5 categorical slots pass the dataviz colour-blind validator in light and dark.
 
+## Tools
+
+| Tool | When Claude calls it | What the user sees |
+|---|---|---|
+| `dashboard` | start of a chat, "how are we doing" | KPI tiles with sparklines, cash balance + forecast, cash in vs out |
+| `show_metric` | a question that matches one of our 10 metrics | that metric in its picked chart |
+| `plot` | **after answering with numbers**: Claude passes the table behind its answer | the table auto-charted (or KPI tiles for one row). With `metric` set, Claude's numbers are checked against ours: conflicts get a red banner, flagged table rows, and the text result tells Claude to correct itself |
+| `browse` | "what data do we have", "find the overdue chart" | a search box over every chart; open results inline, ask Claude about one |
+| `report` | "make a report / summary / message for X" | a builder: sections that fit X pre-checked (plus tables from Claude's answer), the rest one click away; Report or Message; create, then download HTML / CSV / .txt, copy, or ask Claude to polish |
+| `compose` | view only | assembles the chosen report sections |
+
+The rule: **our data wins when we have it; Claude's answer is charted when we don't; nothing shows when no chart is needed.** Every chart from Claude's numbers is tagged "From Claude's answer".
+
+In the view: click a bar to get an "Ask Claude about …" chip (never sends on its own), sort and filter tables, CSV per chart, full screen when the host allows it.
+
+### Project instructions to paste
+
+> When your answer includes numbers that compare items or change over time, answer in text first, then call `kinnser.plot` with the table behind your answer. If the table is about one of our metrics, set `metric`. When asked for a report, summary or update, call `kinnser.report`. When asked what data exists, call `kinnser.browse`. Do not call any of these when the answer has no numbers worth charting.
+
 ## What exists now
 
-- `dashboard` tool: 5 KPI tiles with sparklines, cash balance with forecast, cash in vs out.
-- `show_metric` tool: any of the 10 catalog metrics in `src/metrics.ts`, drawn in the picked form.
-- One MCP App view (`ui/view.*`, bundled to one HTML file by Vite) renders every spec, light and dark.
-- All numbers come from `src/metrics.ts`; the text result gives Claude the same numbers so it narrates and never recomputes. Data is sample until the Zoho Books client lands.
+- One MCP App view (`ui/main.ts` routes to `charts.ts`, `table.ts`, `browse.ts`, `report.ts`; bundled to one HTML file by Vite), light and dark.
+- `src/infer.ts` turns a plain table into a panel (months → trend, buckets → ordered columns, actual + target → bullet rows, one row → tiles, mixed units → table) and matches labels for the conflict check (case, Inc/LLC, "Nov 2026" = "2026-11").
+- All numbers for our metrics come from `src/metrics.ts`; text results give Claude the same numbers. Data is sample until the Zoho Books client lands.
+- `npm run gallery` writes preview specs (`gallery`, `plot`, `claude`, `browse`, `report`) into `dist/ui/`; open `view.html` from a local server and call `window.render(spec)`. In the browser preview, downloads and "ask Claude" are stubbed.
 - Transport is stdio (Claude Desktop, Claude Code). A claude.ai project connector needs a remote HTTP endpoint: next step after Zoho.
 
 ### Try it in Claude Desktop
