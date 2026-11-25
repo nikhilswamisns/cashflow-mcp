@@ -23,15 +23,38 @@ Chart UI and chart code are reused from `~/Downloads/cashflow_with_ml` (repo `ni
 
 ```bash
 npm install
-npm run smoke   # builds the UI, starts the server over stdio, calls the dashboard tool
+npm run check     # type-check + chart picker rules
+npm run smoke     # builds the UI, starts the server over stdio, calls every tool
+npm run gallery   # writes dist/ui/gallery.json: every chart form, for a browser preview
 ```
 
-Copy `.env.example` to `.env` and fill in the Zoho Self Client values (not used yet: data is mock).
+Copy `.env.example` to `.env` and fill in the Zoho Self Client values (not used yet: data is sample).
+
+## How charts are chosen
+
+The server never says "draw a bar chart". Each metric returns a **panel** that says what the data *is* (`src/spec.ts`); `pickChart()` picks the form. Rules come from the charts in cashflow_with_ml and tsp-ai-demo, checked against the dataviz rules (one axis, no pie past 6 parts, line only over time, fold past 8 series).
+
+| Data is… | Panel | Chart |
+|---|---|---|
+| a balance over time | `trend`, `measure: "level"` | area (one series) or line; plan = dashed grey, forecast = dashed orange + likely-range band |
+| an amount per period | `trend`, `measure: "flow"` | bars; `parts` → stacked bars; `inOut` → in up / out down + net line |
+| a value per category | `breakdown` | ranked horizontal bars, largest first, top 10 + "Other" |
+| ordered categories (aging) | `breakdown`, `ordered` | columns in their own order |
+| signed change per category | `breakdown` with negatives | diverging bars, green = better (`goodWhen`) |
+| 2–3 values per category | `breakdown`, several series | grouped (or `parts` → stacked) horizontal bars |
+| one whole split ≤ 6 parts | `share` | donut with total in the middle; > 6 parts or rates → ranked bars |
+| actual vs target per row | `progress` | bullet rows: bar = so far, line = target, orange tick = projected |
+| stages | `funnel` | funnel rows, % of first stage |
+| a list to read | `table` | table |
+
+Every chart has a Table toggle, a code-written insight line, and Actual/Prediction tags. Colours keep one meaning (blue actual, orange forecast, grey plan, green in/good, red out/bad); the 5 categorical slots pass the dataviz colour-blind validator in light and dark.
 
 ## What exists now
 
-- `dashboard` tool (`src/server.ts`): 5 tiles (cash in, cash out, net, AR overdue, runway) and a monthly cash in/out chart, rendered inline in Claude as an MCP App (`ui/dashboard.*`, bundled to one HTML file by Vite).
-- All numbers are computed in `src/metrics.ts`. Data is mock until the Zoho Books client lands.
+- `dashboard` tool: 5 KPI tiles with sparklines, cash balance with forecast, cash in vs out.
+- `show_metric` tool: any of the 10 catalog metrics in `src/metrics.ts`, drawn in the picked form.
+- One MCP App view (`ui/view.*`, bundled to one HTML file by Vite) renders every spec, light and dark.
+- All numbers come from `src/metrics.ts`; the text result gives Claude the same numbers so it narrates and never recomputes. Data is sample until the Zoho Books client lands.
 - Transport is stdio (Claude Desktop, Claude Code). A claude.ai project connector needs a remote HTTP endpoint: next step after Zoho.
 
 ### Try it in Claude Desktop
