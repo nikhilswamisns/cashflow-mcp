@@ -1,4 +1,4 @@
-# mcp-zoho-charts
+# kinnser-mcp
 
 MCP server that gives Claude projects ready-made finance metrics and charts from Zoho Books.
 Zoho's own MCP returns raw records; this server returns pre-aggregated metrics, consistent charts and computed insights.
