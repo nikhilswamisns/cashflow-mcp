@@ -7,9 +7,9 @@ Chart UI and chart code are reused from `~/Downloads/cashflow_with_ml` (repo `ni
 
 ## Roadmap
 
-1. **Basic charts**: revenue trend, AR aging, top customers, expenses by category. Tools `get_metric`, `get_chart`. Source: Zoho Books reports API.
-2. **Custom charts** from cashflow_with_ml (waterfall, forecast, ...). Same tools, new `chart_type` values.
-3. **Zoho Analytics** (optional, only for companies that pay for it): `list_reports`, `get_report`.
+1. **Zoho main data**: connect to Zoho Books and pull the core data and metrics (revenue trend, AR aging, top customers, expenses by category). Tools `get_metric`, `get_chart`. Source: Zoho Books reports API.
+2. **Zoho Analytics charts**: fetch the company's existing Zoho Analytics reports and dashboards and show them as charts. Tools `list_reports`, `get_report`.
+3. **Custom charts** from cashflow_with_ml (waterfall, forecast, ...). Same tools, new `chart_type` values.
 4. **AI layer**, per company: `insights`, `forecast`, custom asks.
 
 ## Design rules
