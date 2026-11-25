@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Panel, Source, Tile, ViewSpec } from "./spec.js";
 import { METRICS, dashboardTiles, type MetricId } from "./metrics.js";
-import { configFromEnv, ZohoBooks } from "./zoho/client.js";
+import { configFromEnv, missingSettings, ZohoBooks } from "./zoho/client.js";
 import * as B from "./zoho/books.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -97,7 +97,7 @@ export async function getMetric(id: MetricId, months = 12): Promise<ViewSpec> {
 
 /** for the check script: one cheap call that proves login, scopes and org id */
 export async function zohoStatus(): Promise<string> {
-  if (!zoho) return "Zoho: not configured (sample data). Needs ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN, ZOHO_BOOKS_ORG_ID (and ZOHO_DC).";
+  if (!zoho) return `Zoho: not configured, using sample data. Missing in .env: ${missingSettings().join(", ")}.`;
   const j = await zoho.get("bankaccounts");
   const n = ((j.bankaccounts as unknown[]) ?? []).length;
   return `Zoho Books: connected (data centre ${cfg!.dc}), ${n} bank/cash account${n === 1 ? "" : "s"} visible.`;

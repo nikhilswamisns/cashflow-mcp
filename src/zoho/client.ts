@@ -23,6 +23,11 @@ const pick = (env: NodeJS.ProcessEnv, keys: string[]) => keys.map((k) => env[k]?
 /** "https://accounts.zoho.in", "zohoapis.eu", ".com.au", "IN" -> "in" / "eu" / "com.au" */
 export const normalizeDc = (v: string) => (v.toLowerCase().match(/zoho(?:apis)?\.([a-z.]+?)\/?$/)?.[1] ?? v.toLowerCase()).replace(/^\./, "").replace(/\/$/, "") || "com";
 
+/** which required settings are absent (names only, never values) */
+export function missingSettings(env: NodeJS.ProcessEnv = process.env): string[] {
+  return (["clientId", "clientSecret", "refreshToken", "orgId"] as const).filter((k) => !pick(env, ALIASES[k])).map((k) => ALIASES[k][0]);
+}
+
 /** null when any value is missing, so the server falls back to sample data */
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): ZohoConfig | null {
   const cfg = {
