@@ -8,7 +8,7 @@ const root = document.getElementById("root")!;
 let last: AnySpec | undefined;
 const inHost = window.parent !== window;
 
-const app = new App({ name: "kinnser-view", version: "0.3.0" }, {}, { autoResize: true });
+const app = new App({ name: "cashflow-view", version: "0.3.0" }, {}, { autoResize: true });
 
 const hostApi: Host = {
   ask: (text) => void app.sendMessage({ role: "user", content: [{ type: "text", text }] }).catch((e) => console.error(e)),

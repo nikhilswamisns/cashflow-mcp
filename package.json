@@ -1,5 +1,5 @@
 {
-  "name": "kinnser-mcp",
+  "name": "cashflow-mcp",
   "version": "1.0.0",
   "description": "MCP server: Zoho cash dashboard (tiles + charts) rendered inline in Claude via MCP Apps",
   "scripts": {

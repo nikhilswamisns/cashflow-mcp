@@ -1,4 +1,4 @@
-# kinnser-mcp
+# cashflow-mcp
 
 MCP server that gives Claude projects ready-made finance metrics and charts from Zoho Books.
 Zoho's own MCP returns raw records; this server returns pre-aggregated metrics, consistent charts and computed insights.
@@ -83,7 +83,7 @@ In the view: click a bar to get an "Ask Claude about …" chip (never sends on i
 
 ### Project instructions to paste
 
-> Answer in text first. Then, only if a chart or headline tiles would help, call `kinnser.visualize` with the question; pass the numbers from your answer as `table` when you have them, and set `metric` when the question is about one of ours. When asked for a report, summary or update, call `kinnser.report`. When asked what data exists, call `kinnser.browse`. Do not call any of these when a chart adds nothing.
+> Answer in text first. Then, only if a chart or headline tiles would help, call `cashflow.visualize` with the question; pass the numbers from your answer as `table` when you have them, and set `metric` when the question is about one of ours. When asked for a report, summary or update, call `cashflow.report`. When asked what data exists, call `cashflow.browse`. Do not call any of these when a chart adds nothing.
 
 ## What exists now
 
@@ -98,7 +98,7 @@ In the view: click a bar to get an "Ask Claude about …" chip (never sends on i
 Add to `claude_desktop_config.json`:
 
 ```json
-{ "mcpServers": { "kinnser": { "command": "npx", "args": ["tsx", "/Users/kiran/Desktop/sns_systems/kinnser-mcp/src/server.ts"] } } }
+{ "mcpServers": { "cashflow": { "command": "npx", "args": ["tsx", "/Users/kiran/Desktop/sns_systems/cashflow-mcp/src/server.ts"] } } }
 ```
 
 Run `npm run build` first, then ask Claude "show cash dashboard".

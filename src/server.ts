@@ -11,11 +11,11 @@ import { compare, inferPanel, type Table } from "./infer.js";
 import { validatePanel, type BrowseSpec, type Panel, type ReportSpec, type Tile, type ViewSpec } from "./spec.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const VIEW_URI = "ui://kinnser/view.html";
+const VIEW_URI = "ui://cashflow/view.html";
 const UI = { ui: { resourceUri: VIEW_URI } };
 const APP_ONLY = { ui: { resourceUri: VIEW_URI, visibility: ["app"] as ("app" | "model")[] } };
 
-const server = new McpServer({ name: "kinnser-mcp", version: "0.3.0" });
+const server = new McpServer({ name: "cashflow-mcp", version: "0.3.0" });
 
 const ok = (structured: object, text: string) => ({ content: [{ type: "text" as const, text }], structuredContent: structured as Record<string, unknown> });
 const view = (v: ViewSpec) => ok(v, summarize(v));
@@ -139,7 +139,7 @@ registerAppTool(server, "compose", {
   return ok({ view: v, message }, `Report "${topic}" built with ${panels.length} sections.`);
 });
 
-registerAppResource(server, "Kinnser chart view", VIEW_URI, { description: "Charts, tables, search and report builder" }, async () => ({
+registerAppResource(server, "Cashflow chart view", VIEW_URI, { description: "Charts, tables, search and report builder" }, async () => ({
   contents: [{ uri: VIEW_URI, mimeType: RESOURCE_MIME_TYPE, text: await fs.readFile(path.join(ROOT, "dist/ui/view.html"), "utf-8") }],
 }));
 

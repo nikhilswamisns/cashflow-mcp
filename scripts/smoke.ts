@@ -5,13 +5,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { METRIC_IDS } from "../src/metrics.js";
 
 const client = new Client({ name: "smoke", version: "0.0.0" });
-await client.connect(new StdioClientTransport({ command: "npx", args: ["tsx", "src/server.ts"] }));
+// sample data: the asserts below expect fixed numbers, and the smoke test must not need Zoho
+await client.connect(new StdioClientTransport({ command: "npx", args: ["tsx", "src/server.ts"], env: { ...process.env, CASHFLOW_DATA: "sample" } as Record<string, string> }));
 
 const { tools } = await client.listTools();
 for (const name of ["dashboard", "show_metric"]) {
   const tool = tools.find((t) => t.name === name);
   assert.ok(tool, `${name} listed`);
-  assert.equal((tool._meta as { ui?: { resourceUri?: string } })?.ui?.resourceUri, "ui://kinnser/view.html");
+  assert.equal((tool._meta as { ui?: { resourceUri?: string } })?.ui?.resourceUri, "ui://cashflow/view.html");
 }
 
 const res = await client.callTool({ name: "dashboard", arguments: { months: 24 } });
@@ -80,7 +81,7 @@ assert.match(cpSpec.message, /^Subject: Board/);
 const badCompose = await client.callTool({ name: "compose", arguments: { topic: "x", ids: [], extras: [{ shape: "trend", x: ["a"], series: [{ name: "s", values: [1, 2] }], id: "z", title: "z", unit: "usd", measure: "flow" }] } });
 assert.ok(badCompose.isError, "malformed extra panel rejected");
 
-const rr = await client.readResource({ uri: "ui://kinnser/view.html" });
+const rr = await client.readResource({ uri: "ui://cashflow/view.html" });
 const html = rr.contents[0] as { text: string; mimeType: string };
 assert.match(html.mimeType, /mcp-app/);
 assert.ok(!/<script[^>]+src=/.test(html.text) && html.text.length > 10_000, "bundled single-file HTML, no external scripts");

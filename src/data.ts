@@ -15,7 +15,7 @@ try {
   /* no .env: sample mode */
 }
 
-const cfg = configFromEnv();
+const cfg = process.env.CASHFLOW_DATA === "sample" ? null : configFromEnv(); // CASHFLOW_DATA=sample forces sample data
 const zoho = cfg ? new ZohoBooks(cfg) : null;
 export const source: Source = zoho ? "zoho_books" : "sample";
 const today = () => new Date().toISOString().slice(0, 10);
