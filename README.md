@@ -23,8 +23,8 @@ Chart UI and chart code are reused from `~/Downloads/cashflow_with_ml` (repo `ni
 
 ```bash
 npm install
-npm run check       # type-check + picker, table-inference and Zoho tests (no network)
-npm run smoke       # builds the UI, calls every tool over stdio, then over HTTP (secret lock checked)
+npm run check       # type-check + picker, table-inference, Zoho and OAuth tests (no network)
+npm run smoke       # builds the UI, calls every tool over stdio, then over HTTP after an OAuth sign-in
 npm run preview     # builds, writes sample data, opens http://localhost:5178/view.html with a demo bar
 npm run zoho:check  # with .env filled: logs in to Zoho Books and builds every metric from live data
 ```
@@ -91,33 +91,37 @@ In the view: click a bar to get an "Ask Claude about …" chip (never sends on i
 - `src/infer.ts` turns a plain table into a panel (months → trend, buckets → ordered columns, actual + target → bullet rows, one row → tiles, mixed units → table) and matches labels for the conflict check (case, Inc/LLC, "Nov 2026" = "2026-11").
 - All numbers for our metrics come from `src/metrics.ts`; text results give Claude the same numbers. Data is sample until the Zoho Books client lands.
 - `npm run gallery` writes preview specs (`gallery`, `plot`, `claude`, `browse`, `report`) into `dist/ui/`; open `view.html` from a local server and call `window.render(spec)`. In the browser preview, downloads and "ask Claude" are stubbed.
-- Entries share `src/app.ts`: `src/server.ts` (stdio, Claude Desktop and Claude Code), `src/web.ts` (HTTP on your laptop) and `api/mcp/[secret].ts` (Vercel). Both HTTP entries use the lock in `src/http.ts`.
+- Entries share `src/app.ts`: `src/server.ts` (stdio, Claude Desktop and Claude Code), `src/web.ts` (HTTP on your laptop) and `api/handler.ts` (Vercel). Both HTTP entries serve MCP at `/mcp` behind the OAuth in `src/auth.ts`.
+
+### Sign-in (OAuth)
+
+claude.ai connects through OAuth: it finds `/.well-known/oauth-protected-resource`, registers itself, opens `/authorize`, and you type `CASHFLOW_PASSWORD` once. It then holds a 1-hour access token and a 30-day refresh token.
+
+- Stateless: codes and tokens are signed with `CASHFLOW_AUTH_SECRET` and the password, so there is no database. Change either one to sign everyone out.
+- Only Claude's callback URLs (and localhost, for Claude Code and MCP Inspector) can receive a code. PKCE (S256) is required.
+- One shared password, no per-person accounts; a wrong password waits 0.8 s. Use a long password. Per-person logins need an identity provider (next step if several people use it).
 
 ### Host it on Vercel (permanent URL for claude.ai)
 
-1. vercel.com > Add New > Project > import `nikhilswamisns/cashflow-mcp`. Framework: Other; `vercel.json` sets the build.
-2. Settings > Environment Variables:
-   - `CASHFLOW_WEB_SECRET`: 32+ random characters (`openssl rand -base64 32 | tr -d '/+='`).
-   - `CASHFLOW_DATA=sample` until OAuth exists; for live data the Zoho settings from `.env.example` instead.
-3. Deploy, then in claude.ai add the custom connector `https://<project>.vercel.app/api/mcp/<CASHFLOW_WEB_SECRET>`.
+1. vercel.com > Add New > Project > import `nikhilswamisns/cashflow-mcp`. Framework: Other; `vercel.json` sets the build and sends every path to `api/handler.ts`.
+2. Settings > Environment Variables: `CASHFLOW_PASSWORD` (12+ chars), `CASHFLOW_AUTH_SECRET` (`openssl rand -base64 48`), and the Zoho settings from `.env.example` (or `CASHFLOW_DATA=sample`).
+3. Deploy, open `https://<project>.vercel.app/` (it prints the connector URL), then in claude.ai: Settings > Connectors > Add custom connector, URL `https://<project>.vercel.app/mcp`, and sign in.
 
-Every push to `main` redeploys. Any other path answers 404. The URL is permanent and public: anyone who has it reads whatever data the server holds, so keep it on sample data until OAuth replaces the secret path.
+Every push to `main` redeploys.
 
 ### Use it on claude.ai (web) from your laptop
 
 claude.ai reaches connectors from Anthropic's servers, so `localhost` is not enough: run the HTTP entry and put a tunnel in front of it.
 
 ```bash
-npm run web                                     # prints the local URL; makes CASHFLOW_WEB_SECRET in .env on first run
+npm run web                                     # needs CASHFLOW_PASSWORD in .env; makes CASHFLOW_AUTH_SECRET on first run
 brew install cloudflared                        # once
 cloudflared tunnel --url http://localhost:3000  # prints https://<random>.trycloudflare.com
 ```
 
-In claude.ai: Settings > Connectors > Add custom connector, URL `https://<random>.trycloudflare.com/mcp/<CASHFLOW_WEB_SECRET>`.
+Connector URL: `https://<random>.trycloudflare.com/mcp`. Works only while the laptop, `npm run web` and the tunnel run; the quick-tunnel host changes on every restart.
 
-- Works only while the laptop, `npm run web` and the tunnel are running. The quick-tunnel host changes on every restart; a named Cloudflare tunnel keeps one.
-- The secret in the path is the only lock: any other path answers 404. Treat the connector URL like a password, and do not use this for other people; that needs OAuth and a host.
-- Real Zoho numbers pass through the Claude account you connect. Prefer a company Team/Enterprise account; on a personal one, turn off "Help improve Claude" or run with `CASHFLOW_DATA=sample`.
+Real Zoho numbers pass through the Claude account you connect. Prefer a company Team/Enterprise account; on a personal one, turn off "Help improve Claude" or run with `CASHFLOW_DATA=sample`.
 
 ### Try it in Claude Desktop
 

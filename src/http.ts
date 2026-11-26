@@ -1,21 +1,14 @@
-// Web-standard MCP handler behind a secret last path segment; used by src/web.ts (laptop) and api/mcp/[secret].ts (Vercel).
-// shortcut: the secret path is the only lock; add OAuth before other people or real data use a public URL.
+// The HTTP app shared by src/web.ts (laptop + tunnel) and api/handler.ts (Vercel): MCP at /mcp behind OAuth (src/auth.ts).
 
-import { timingSafeEqual } from "node:crypto";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { buildServer } from "./app.js";
+import { withOAuth } from "./auth.js";
 
-const same = (a: string, b: string) => {
-  const x = Buffer.from(a), y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-};
-
-/** 404 unless the path is <prefix>/<secret>; same answer for a wrong secret and a wrong path */
-export function lockedMcp(secret: string, prefix: string) {
-  if (secret.length < 32) throw new Error("CASHFLOW_WEB_SECRET must be at least 32 characters");
+export function cashflowHttp(env: NodeJS.ProcessEnv = process.env) {
   const mcp = createMcpHandler(() => buildServer(), { onerror: (e) => console.error("[mcp]", e.message) });
-  return {
-    fetch: async (req: Request): Promise<Response> =>
-      same(new URL(req.url).pathname, `${prefix}/${secret}`) ? mcp.fetch(req) : new Response(null, { status: 404 }),
-  };
+  return withOAuth((req) => mcp.fetch(req), {
+    authSecret: env.CASHFLOW_AUTH_SECRET?.trim() ?? "",
+    password: env.CASHFLOW_PASSWORD ?? "",
+    publicUrl: env.CASHFLOW_PUBLIC_URL?.trim() || undefined,
+  });
 }

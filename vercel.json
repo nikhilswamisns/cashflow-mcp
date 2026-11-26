@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "outputDirectory": "dist/ui",
+  "rewrites": [{ "source": "/:p*", "destination": "/api/handler?__p=:p*" }],
   "functions": {
-    "api/mcp/[secret].ts": { "includeFiles": "dist/ui/view.html", "maxDuration": 60 }
+    "api/handler.ts": { "includeFiles": "dist/ui/view.html", "maxDuration": 60 }
   }
 }
