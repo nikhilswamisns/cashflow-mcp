@@ -24,7 +24,7 @@ Chart UI and chart code are reused from `~/Downloads/cashflow_with_ml` (repo `ni
 ```bash
 npm install
 npm run check       # type-check + picker, table-inference and Zoho tests (no network)
-npm run smoke       # builds the UI, starts the server over stdio, calls every tool
+npm run smoke       # builds the UI, calls every tool over stdio, then over HTTP (secret lock checked)
 npm run preview     # builds, writes sample data, opens http://localhost:5178/view.html with a demo bar
 npm run zoho:check  # with .env filled: logs in to Zoho Books and builds every metric from live data
 ```
@@ -91,7 +91,23 @@ In the view: click a bar to get an "Ask Claude about …" chip (never sends on i
 - `src/infer.ts` turns a plain table into a panel (months → trend, buckets → ordered columns, actual + target → bullet rows, one row → tiles, mixed units → table) and matches labels for the conflict check (case, Inc/LLC, "Nov 2026" = "2026-11").
 - All numbers for our metrics come from `src/metrics.ts`; text results give Claude the same numbers. Data is sample until the Zoho Books client lands.
 - `npm run gallery` writes preview specs (`gallery`, `plot`, `claude`, `browse`, `report`) into `dist/ui/`; open `view.html` from a local server and call `window.render(spec)`. In the browser preview, downloads and "ask Claude" are stubbed.
-- Transport is stdio (Claude Desktop, Claude Code). A claude.ai project connector needs a remote HTTP endpoint: next step after Zoho.
+- Two entries share `src/app.ts`: `src/server.ts` (stdio, for Claude Desktop and Claude Code) and `src/web.ts` (HTTP, for claude.ai).
+
+### Use it on claude.ai (web) from your laptop
+
+claude.ai reaches connectors from Anthropic's servers, so `localhost` is not enough: run the HTTP entry and put a tunnel in front of it.
+
+```bash
+npm run web                                     # prints the local URL; makes CASHFLOW_WEB_SECRET in .env on first run
+brew install cloudflared                        # once
+cloudflared tunnel --url http://localhost:3000  # prints https://<random>.trycloudflare.com
+```
+
+In claude.ai: Settings > Connectors > Add custom connector, URL `https://<random>.trycloudflare.com/mcp/<CASHFLOW_WEB_SECRET>`.
+
+- Works only while the laptop, `npm run web` and the tunnel are running. The quick-tunnel host changes on every restart; a named Cloudflare tunnel keeps one.
+- The secret in the path is the only lock: any other path answers 404. Treat the connector URL like a password, and do not use this for other people; that needs OAuth and a host.
+- Real Zoho numbers pass through the Claude account you connect. Prefer a company Team/Enterprise account; on a personal one, turn off "Help improve Claude" or run with `CASHFLOW_DATA=sample`.
 
 ### Try it in Claude Desktop
 
