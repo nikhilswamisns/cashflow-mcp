@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/ui",
+  "functions": {
+    "api/mcp/[secret].ts": { "includeFiles": "dist/ui/view.html", "maxDuration": 60 }
+  }
+}

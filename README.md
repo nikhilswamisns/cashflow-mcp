@@ -91,7 +91,17 @@ In the view: click a bar to get an "Ask Claude about …" chip (never sends on i
 - `src/infer.ts` turns a plain table into a panel (months → trend, buckets → ordered columns, actual + target → bullet rows, one row → tiles, mixed units → table) and matches labels for the conflict check (case, Inc/LLC, "Nov 2026" = "2026-11").
 - All numbers for our metrics come from `src/metrics.ts`; text results give Claude the same numbers. Data is sample until the Zoho Books client lands.
 - `npm run gallery` writes preview specs (`gallery`, `plot`, `claude`, `browse`, `report`) into `dist/ui/`; open `view.html` from a local server and call `window.render(spec)`. In the browser preview, downloads and "ask Claude" are stubbed.
-- Two entries share `src/app.ts`: `src/server.ts` (stdio, for Claude Desktop and Claude Code) and `src/web.ts` (HTTP, for claude.ai).
+- Entries share `src/app.ts`: `src/server.ts` (stdio, Claude Desktop and Claude Code), `src/web.ts` (HTTP on your laptop) and `api/mcp/[secret].ts` (Vercel). Both HTTP entries use the lock in `src/http.ts`.
+
+### Host it on Vercel (permanent URL for claude.ai)
+
+1. vercel.com > Add New > Project > import `nikhilswamisns/cashflow-mcp`. Framework: Other; `vercel.json` sets the build.
+2. Settings > Environment Variables:
+   - `CASHFLOW_WEB_SECRET`: 32+ random characters (`openssl rand -base64 32 | tr -d '/+='`).
+   - `CASHFLOW_DATA=sample` until OAuth exists; for live data the Zoho settings from `.env.example` instead.
+3. Deploy, then in claude.ai add the custom connector `https://<project>.vercel.app/api/mcp/<CASHFLOW_WEB_SECRET>`.
+
+Every push to `main` redeploys. Any other path answers 404. The URL is permanent and public: anyone who has it reads whatever data the server holds, so keep it on sample data until OAuth replaces the secret path.
 
 ### Use it on claude.ai (web) from your laptop
 
