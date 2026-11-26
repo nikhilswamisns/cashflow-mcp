@@ -195,7 +195,8 @@ export function pickChart(p: Panel): Form {
       // a share of a rate or a signed number is not a share; past 6 parts slices can't be compared
       const sum = p.values.reduce((a, b) => a + b, 0);
       const bad = (p.unit === "percent" && Math.abs(sum - 100) > 1.5) || p.values.some((v) => v < 0);
-      return bad || p.x.length > MAX_DONUT_PARTS ? "ranked-hbars" : "donut";
+      // one slice is a full ring that says nothing
+      return bad || p.x.length < 2 || p.x.length > MAX_DONUT_PARTS ? "ranked-hbars" : "donut";
     }
     case "progress":
       return "bullet-rows";

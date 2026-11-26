@@ -26,6 +26,7 @@ assert.equal(pickChart(brk({ parts: true, series: [s("a", [1, 2]), s("b", [2, 1]
 // share: donut only for <= 6 additive parts
 const share = (n: number, unit: "usd" | "percent" = "usd"): Panel => ({ id: "s", title: "s", unit, shape: "share", x: Array.from({ length: n }, (_, i) => `p${i}`), values: Array(n).fill(1) });
 assert.equal(pickChart(share(4)), "donut");
+assert.equal(pickChart(share(1)), "ranked-hbars");
 assert.equal(pickChart(share(7)), "ranked-hbars", "7 parts -> bars, slices can't be compared");
 assert.equal(pickChart(share(3, "percent")), "ranked-hbars", "rates are not shares");
 
